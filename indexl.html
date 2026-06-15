@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Học tiếng Nhật qua AI</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="container">
+    <h1>📖 Học tiếng Nhật qua AI</h1>
+    <p class="subtitle">Tab ngang – Tự động lưu – Phím tắt – Lọc JLPT</p>
+
+    <div class="main-tabs">
+        <button class="main-tab active" data-tab="prompt">1. Nhập liệu & Prompt</button>
+        <button class="main-tab" data-tab="json">2. Dán JSON & Học</button>
+        <button class="main-tab" data-tab="learn" id="tabLearn">3. Học tập</button>
+        <button class="main-tab" data-tab="saved">4. Bài đã lưu</button>
+    </div>
+
+    <!-- Tab 1: Nhập liệu & Prompt -->
+    <div class="main-panel active" id="panel-prompt">
+        <div class="card-box">
+            <h3>📋 Nhập nội dung</h3>
+            <textarea id="inputText" rows="5" placeholder="Dán bài báo tiếng Nhật..."></textarea>
+            <div style="display:flex; gap:8px;">
+                <input type="text" id="urlInput" placeholder="https://... (URL)">
+                <button class="btn btn-outline" id="btnFetchUrl">🌐 Tải</button>
+            </div>
+            <button class="btn btn-primary" id="btnGeneratePrompt">✨ Tạo Prompt</button>
+            <div id="promptContainer" style="display:none; margin-top:12px;">
+                <div class="prompt-box" id="promptBox"></div>
+                <button class="btn btn-primary copy-btn" id="btnCopyPrompt">📋 Copy prompt</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab 2: Dán JSON & Lưu -->
+    <div class="main-panel" id="panel-json">
+        <div class="card-box">
+            <h3>📥 Dán JSON từ AI (tự động lưu)</h3>
+            <textarea id="jsonInput" rows="6" placeholder='Ví dụ:
+{
+  "title": "Bài học số 1",
+  "fullText": "わたしは がくせい です。",
+  "vocabulary": [
+    {"word": "わたし", "reading": "watashi", "meaning": "tôi", "jlpt": "N5", "example": ""}
+  ],
+  "grammar": []
+}'></textarea>
+            <button class="btn btn-primary" id="btnLoadJson">🚀 Xử lý & Học</button>
+        </div>
+    </div>
+
+    <!-- Tab 3: Học tập -->
+    <div class="main-panel" id="panel-learn">
+        <div class="filter-bar" id="jlptFilterBar">
+            <label><strong>🎌 Cấp độ JLPT:</strong></label>
+            <select id="jlptFilter">
+                <option value="all">Tất cả</option>
+                <option value="N5">N5</option>
+                <option value="N4">N4</option>
+                <option value="N3">N3</option>
+                <option value="N2">N2</option>
+                <option value="N1">N1</option>
+            </select>
+            <span id="filteredCount" style="font-size:0.9rem; color:var(--sub);"></span>
+        </div>
+        <div class="sub-tabs">
+            <button class="sub-tab active" data-sub="read">📰 Bài đọc</button>
+            <button class="sub-tab" data-sub="vocab">📝 Từ vựng (<span id="vocabCount">0</span>)</button>
+            <button class="sub-tab" data-sub="grammar">📚 Ngữ pháp (<span id="grammarCount">0</span>)</button>
+            <button class="sub-tab" data-sub="flashcard">🃏 Flashcard</button>
+            <button class="sub-tab" data-sub="quiz">❓ Quiz</button>
+        </div>
+
+        <div class="sub-panel active" id="sub-read"><div class="article-content" id="articleContent"></div></div>
+        <div class="sub-panel" id="sub-vocab">
+            <ul class="list-container" id="vocabList"></ul>
+            <div class="empty" id="vocabEmpty">Chưa có từ vựng.</div>
+        </div>
+        <div class="sub-panel" id="sub-grammar">
+            <ul class="list-container" id="grammarList"></ul>
+            <div class="empty" id="grammarEmpty">Chưa có ngữ pháp.</div>
+        </div>
+        <div class="sub-panel" id="sub-flashcard">
+            <div class="flashcard-static">
+                <div class="fc-front">
+                    <div class="fc-word" id="fcWord"></div>
+                    <div class="fc-reading" id="fcReading"></div>
+                </div>
+                <div class="fc-back" id="fcBack">
+                    <div class="fc-meaning" id="fcMeaning"></div>
+                </div>
+            </div>
+            <div style="text-align:center; margin-top:10px;">
+                <button class="btn btn-small" id="btnPrevCard">◀</button>
+                <button class="btn btn-small" id="btnToggleMeaning">🔁 Hiện nghĩa</button>
+                <button class="btn btn-small" id="btnNextCard">▶</button>
+                <span id="fcProgress"></span>
+            </div>
+            <p class="shortcut-hint">⌨️ ← → đổi thẻ, Space hiện/ẩn nghĩa (không nhảy chữ)</p>
+        </div>
+        <div class="sub-panel" id="sub-quiz">
+            <div id="quizArea" style="display:none;">
+                <div class="quiz-progress">
+                    <div class="progress-bar-container">
+                        <div id="quizProgressBar" class="progress-bar-fill" style="width:0%"></div>
+                    </div>
+                    <div id="quizProgressText" style="text-align:center; font-size:0.8rem;">0/0</div>
+                </div>
+                <div class="quiz-word" id="quizWord"></div>
+                <div class="quiz-options" id="quizOptions"></div>
+                <div class="quiz-result" id="quizResult"></div>
+                <div style="text-align:center;">
+                    <button class="btn btn-small" id="btnNextQuiz">▶ Câu tiếp (Space/→)</button>
+                </div>
+            </div>
+            <div id="quizSummary" style="display:none;"></div>
+            <div class="empty" id="quizEmpty">Cần ít nhất 4 từ vựng để làm quiz.</div>
+            <p class="shortcut-hint">⌨️ 1-4 chọn đáp án, Space/→ sang câu tiếp</p>
+        </div>
+    </div>
+
+    <!-- Tab 4: Bài đã lưu -->
+    <div class="main-panel" id="panel-saved">
+        <h3>📚 Bài học đã lưu</h3>
+        <div class="saved-list" id="savedList"></div>
+        <div class="empty" id="savedEmpty">Chưa có bài nào được lưu.</div>
+    </div>
+</div>
+
+<div class="word-tooltip" id="wordTooltip"></div>
+<div id="toastContainer"></div>
+
+<script src="script.js"></script>
+</body>
+</html>
