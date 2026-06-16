@@ -100,13 +100,27 @@ textarea, input[type="text"], select {
 
 /* Flashcard cố định */
 .flashcard-static {
+    position: relative;
     max-width: 500px; margin: 20px auto; background: var(--card);
     border: 1px solid var(--border); border-radius: var(--radius);
     box-shadow: var(--shadow); padding: 30px; text-align: center;
     min-height: 280px;
     display: flex; flex-direction: column; justify-content: center;
-    position: relative;
 }
+.star-icon {
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    font-size: 32px;
+    cursor: pointer;
+    user-select: none;
+    transition: transform 0.1s ease;
+    z-index: 10;
+    color: #ccc;
+}
+.star-icon:hover { transform: scale(1.1); }
+.star-icon.starred { color: gold; text-shadow: 0 0 2px rgba(0,0,0,0.3); }
+
 .fc-front .fc-word { font-size: 2.8rem; font-family: var(--font-jp); font-weight: 700; }
 .fc-front .fc-reading { color: var(--sub); margin-top: 10px; font-size: 1.3rem; }
 .fc-back {
@@ -177,6 +191,39 @@ textarea, input[type="text"], select {
 }
 @keyframes toastUp { from{ transform: translateX(-50%) translateY(20px); opacity:0; } to{ transform: translateX(-50%) translateY(0); opacity:1; } }
 @keyframes toastFade { to{ opacity:0; transform: translateX(-50%) translateY(-10px); } }
+
+/* Focus mode: ẩn toàn bộ giao diện trừ flashcard */
+body.focus-mode .main-tabs,
+body.focus-mode .sub-tabs,
+body.focus-mode .filter-bar,
+body.focus-mode h1,
+body.focus-mode .subtitle,
+body.focus-mode .shortcut-hint,
+body.focus-mode .container > :not(#panel-learn) {
+    display: none !important;
+}
+body.focus-mode #panel-learn {
+    display: block !important;
+}
+body.focus-mode .flashcard-static {
+    margin-top: 20px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.2);
+}
+body.focus-mode .container {
+    max-width: 700px;
+}
+
+/* Thêm style cho ngôi sao trong danh sách từ vựng */
+.star-icon-list {
+    cursor: pointer;
+    font-size: 22px;
+    color: #ccc;
+    transition: color 0.1s;
+}
+.star-icon-list.starred {
+    color: gold;
+    text-shadow: 0 0 1px goldenrod;
+}
 
 @media (max-width: 700px) {
     .quiz-options { grid-template-columns: 1fr; }

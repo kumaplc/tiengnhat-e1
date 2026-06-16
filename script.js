@@ -7,6 +7,34 @@
     let currentJLPT = 'all';
     let savedArticles = JSON.parse(localStorage.getItem('jp_saved_articles') || '[]');
     let fcMeaningVisible = false;
+    
+    // Starred map: lưu các từ cần ôn tập
+    let starredMap = JSON.parse(localStorage.getItem('jp_starred_map') || '{}');
+    function saveStarredMap() { localStorage.setItem('jp_starred_map', JSON.stringify(starredMap)); }
+    function syncStarredToVocab() {
+        for (let v of vocabList) {
+            if (starredMap[v.word] !== undefined) v.starred = starredMap[v.word];
+            else v.starred = false;
+        }
+    }
+    function toggleStar(word) {
+        const newState = !starredMap[word];
+        starredMap[word] = newState;
+        saveStarredMap();
+        const vocabItem = vocabList.find(v => v.word === word);
+        if (vocabItem) vocabItem.starred = newState;
+        // Cập nhật UI nếu đang ở các panel liên quan
+        const activeMain = document.querySelector('.main-panel.active');
+        if (activeMain && activeMain.id === 'panel-learn') {
+            const activeSub = document.querySelector('.sub-panel.active');
+            if (activeSub) {
+                if (activeSub.id === 'sub-flashcard') updateFlashcardUI();
+                else if (activeSub.id === 'sub-vocab') renderVocabList();
+                else if (activeSub.id === 'sub-quiz') updateQuizUI();
+            }
+        }
+        showToast(newState ? '⭐ Đã thêm vào ôn tập' : '☆ Đã bỏ khỏi ôn tập');
+    }
 
     // Quiz variables
     let quizWords = [];
@@ -77,10 +105,13 @@
         document.querySelectorAll('.sub-panel').forEach(p => p.classList.remove('active'));
         const activeSubPanel = document.getElementById(`sub-${subName}`);
         if (activeSubPanel) activeSubPanel.classList.add('active');
-        if (subName === 'flashcard') { applyJLPTFilter(); updateFlashcardUI(); }
-        if (subName === 'quiz') { applyJLPTFilter(); updateQuizUI(); }
-        if (subName === 'vocab') { applyJLPTFilter(); renderVocabList(); }
-        if (subName === 'grammar') renderGrammarList();
+        // Cập nhật số lượng và render
+        applyJLPTFilter(); // cập nhật filteredCount
+        if (subName === 'flashcard') { fcIndex = 0; updateFlashcardUI(); }
+        else if (subName === 'quiz') updateQuizUI();
+        else if (subName === 'vocab') renderVocabList();
+        else if (subName === 'grammar') renderGrammarList();
+        // sub-read không cần render gì thêm
     }
 
     document.querySelectorAll('.main-tab').forEach(tab => tab.addEventListener('click', () => switchMainTab(tab.dataset.tab)));
@@ -89,7 +120,10 @@
     function applyJLPTFilter() {
         const filterSelect = document.getElementById('jlptFilter');
         currentJLPT = filterSelect ? filterSelect.value : 'all';
-        const filtered = currentJLPT === 'all' ? vocabList : vocabList.filter(v => v.jlpt === currentJLPT);
+        let filtered = [];
+        if (currentJLPT === 'starred') filtered = vocabList.filter(v => v.starred === true);
+        else if (currentJLPT === 'all') filtered = vocabList;
+        else filtered = vocabList.filter(v => v.jlpt === currentJLPT);
         const filteredCountSpan = document.getElementById('filteredCount');
         if (filteredCountSpan) filteredCountSpan.textContent = vocabList.length > 0 ? `(${filtered.length} từ)` : '';
         return filtered;
@@ -99,10 +133,15 @@
     if (filterSelect) {
         filterSelect.addEventListener('change', () => {
             if (document.getElementById('panel-learn')?.classList.contains('active')) {
+                // Cập nhật số lượng
+                const filtered = applyJLPTFilter();
                 const activeSub = document.querySelector('.sub-panel.active');
-                if (activeSub?.id === 'sub-vocab') renderVocabList();
-                else if (activeSub?.id === 'sub-flashcard') { fcIndex = 0; updateFlashcardUI(); }
-                else if (activeSub?.id === 'sub-quiz') updateQuizUI();
+                if (activeSub) {
+                    if (activeSub.id === 'sub-vocab') renderVocabList();
+                    else if (activeSub.id === 'sub-flashcard') { fcIndex = 0; updateFlashcardUI(); }
+                    else if (activeSub.id === 'sub-quiz') updateQuizUI();
+                    // sub-read và sub-grammar không bị ảnh hưởng bởi filter
+                }
             }
         });
     }
@@ -185,7 +224,12 @@ ${text}
         vocabList = json.vocabulary || [];
         grammarList = json.grammar || [];
         for (let k in vocabMap) delete vocabMap[k];
-        for (const v of vocabList) vocabMap[v.word] = v;
+        for (const v of vocabList) {
+            vocabMap[v.word] = v;
+            if (starredMap[v.word] !== undefined) v.starred = starredMap[v.word];
+            else v.starred = false;
+        }
+        syncStarredToVocab();
         
         const tabLearn = document.getElementById('tabLearn');
         const filterBar = document.getElementById('jlptFilterBar');
@@ -261,6 +305,7 @@ ${text}
         updateCounts();
         updateFlashcardUI();
         updateQuizUI();
+        applyJLPTFilter(); // cập nhật số lượng
     }
 
     function updateCounts() {
@@ -308,15 +353,31 @@ ${text}
     function renderVocabList() {
         const list = document.getElementById('vocabList'), empty = document.getElementById('vocabEmpty');
         if (!list || !empty) return;
-        const filtered = applyJLPTFilter();
+        const filtered = applyJLPTFilter(); // vừa lọc vừa cập nhật số lượng
         if(filtered.length===0){ list.innerHTML=''; empty.style.display='block'; return; }
         empty.style.display='none';
-        list.innerHTML = filtered.map(v=>`<li class="card">
-            <div><span class="jp">${escapeHtml(v.word)}</span><span class="reading">${escapeHtml(v.reading||'')}</span></div>
-            <div>${escapeHtml(v.meaning||'')}</div>
-            ${v.jlpt?`<span class="tag">${v.jlpt}</span>`:''}
-            <div style="font-size:0.85rem; color:var(--sub); margin-top:6px;">📖 ${escapeHtml(getEasyExample(v, 'vocab'))}</div>
-        </li>`).join('');
+        list.innerHTML = filtered.map(v => {
+            const starred = v.starred ? 'starred' : '';
+            const starChar = v.starred ? '★' : '☆';
+            return `<li class="card">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div><span class="jp">${escapeHtml(v.word)}</span><span class="reading">${escapeHtml(v.reading||'')}</span></div>
+                    <span class="star-icon-list ${starred}" data-word="${escapeHtml(v.word)}" style="cursor:pointer; font-size:22px;">${starChar}</span>
+                </div>
+                <div>${escapeHtml(v.meaning||'')}</div>
+                ${v.jlpt?`<span class="tag">${v.jlpt}</span>`:''}
+                <div style="font-size:0.85rem; color:var(--sub); margin-top:6px;">📖 ${escapeHtml(getEasyExample(v, 'vocab'))}</div>
+            </li>`;
+        }).join('');
+        // Gắn sự kiện click cho từng sao
+        document.querySelectorAll('.star-icon-list').forEach(el => {
+            const word = el.dataset.word;
+            el.addEventListener('click', (e) => {
+                e.stopPropagation();
+                toggleStar(word);
+                renderVocabList(); // refresh lại danh sách
+            });
+        });
     }
     
     function renderGrammarList() {
@@ -333,7 +394,11 @@ ${text}
     }
 
     // FLASHCARD
-    function getFilteredVocab() { return currentJLPT === 'all' ? vocabList : vocabList.filter(v => v.jlpt === currentJLPT); }
+    function getFilteredVocab() { 
+        if (currentJLPT === 'starred') return vocabList.filter(v => v.starred === true);
+        if (currentJLPT === 'all') return vocabList;
+        return vocabList.filter(v => v.jlpt === currentJLPT);
+    }
     
     function updateFlashcardUI() {
         const filtered = getFilteredVocab();
@@ -342,6 +407,7 @@ ${text}
         const fcMeaning = document.getElementById('fcMeaning');
         const fcBack = document.getElementById('fcBack');
         const fcProgress = document.getElementById('fcProgress');
+        const starIcon = document.getElementById('starIcon');
         if (!fcWord || !fcReading || !fcMeaning || !fcBack || !fcProgress) return;
         
         if (filtered.length === 0) {
@@ -351,14 +417,29 @@ ${text}
             fcProgress.textContent = '0/0';
             fcBack.style.opacity = '0';
             fcBack.style.visibility = 'hidden';
+            if (starIcon) starIcon.style.display = 'none';
             return;
         }
+        if (starIcon) starIcon.style.display = 'block';
         if (fcIndex >= filtered.length) fcIndex = 0;
         const v = filtered[fcIndex];
         fcWord.textContent = v.word;
         fcReading.textContent = v.reading || '';
         fcMeaning.textContent = v.meaning || '';
         fcProgress.textContent = `${fcIndex+1}/${filtered.length}`;
+        
+        // Cập nhật ngôi sao
+        if (starIcon) {
+            starIcon.textContent = v.starred ? '★' : '☆';
+            starIcon.classList.toggle('starred', v.starred);
+            // Xóa event cũ để tránh trùng, gán mới
+            const newStar = starIcon.cloneNode(true);
+            starIcon.parentNode.replaceChild(newStar, starIcon);
+            const newStarIcon = document.getElementById('starIcon');
+            if (newStarIcon) {
+                newStarIcon.onclick = () => toggleStar(v.word);
+            }
+        }
         
         fcMeaningVisible = false;
         fcBack.style.opacity = '0';
@@ -383,6 +464,25 @@ ${text}
         if (f.length) { fcIndex = (fcIndex + 1) % f.length; updateFlashcardUI(); }
     });
     document.getElementById('btnToggleMeaning')?.addEventListener('click', toggleMeaning);
+
+    // Focus Mode
+    function enableFocusMode() {
+        document.body.classList.add('focus-mode');
+        document.getElementById('btnFocusMode').style.display = 'none';
+        document.getElementById('exitFocusBtn').style.display = 'block';
+    }
+    function disableFocusMode() {
+        document.body.classList.remove('focus-mode');
+        document.getElementById('btnFocusMode').style.display = 'inline-flex';
+        document.getElementById('exitFocusBtn').style.display = 'none';
+    }
+    document.getElementById('btnFocusMode')?.addEventListener('click', enableFocusMode);
+    document.getElementById('btnExitFocus')?.addEventListener('click', disableFocusMode);
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && document.body.classList.contains('focus-mode')) {
+            disableFocusMode();
+        }
+    });
 
     // QUIZ
     function updateQuizUI() {
@@ -570,7 +670,7 @@ Hãy bắt đầu bằng cách:
 - Học từ vựng và ngữ pháp
 - Ôn tập với Flashcard (phím ← → và Space)
 - Làm bài tập Quiz (phím 1-4 và Space/→)
-- Lọc theo cấp độ JLPT
+- Lọc theo cấp độ JLPT hoặc chỉ xem từ đã đánh dấu sao ⭐
 
 Chúc bạn học tốt! 🎌`,
                 vocabulary: [],

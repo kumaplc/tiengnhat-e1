@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Học tiếng Nhật qua AI</title>
+    <title>Học tiếng Nhật qua AI - Focus & Ôn tập sao</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div class="container">
     <h1>📖 Học tiếng Nhật qua AI</h1>
-    <p class="subtitle">Tab ngang – Tự động lưu – Phím tắt – Lọc JLPT</p>
+    <p class="subtitle">Tab ngang – Tự động lưu – Phím tắt – Lọc JLPT – ⭐ Ôn tập</p>
 
     <div class="main-tabs">
         <button class="main-tab active" data-tab="prompt">1. Nhập liệu & Prompt</button>
@@ -55,7 +55,7 @@
     <!-- Tab 3: Học tập -->
     <div class="main-panel" id="panel-learn">
         <div class="filter-bar" id="jlptFilterBar">
-            <label><strong>🎌 Cấp độ JLPT:</strong></label>
+            <label><strong>🎌 Cấp độ JLPT / ⭐:</strong></label>
             <select id="jlptFilter">
                 <option value="all">Tất cả</option>
                 <option value="N5">N5</option>
@@ -63,6 +63,7 @@
                 <option value="N3">N3</option>
                 <option value="N2">N2</option>
                 <option value="N1">N1</option>
+                <option value="starred">⭐ Đã lưu</option>
             </select>
             <span id="filteredCount" style="font-size:0.9rem; color:var(--sub);"></span>
         </div>
@@ -84,7 +85,8 @@
             <div class="empty" id="grammarEmpty">Chưa có ngữ pháp.</div>
         </div>
         <div class="sub-panel" id="sub-flashcard">
-            <div class="flashcard-static">
+            <div class="flashcard-static" id="flashcardContainer">
+                <div class="star-icon" id="starIcon">☆</div>
                 <div class="fc-front">
                     <div class="fc-word" id="fcWord"></div>
                     <div class="fc-reading" id="fcReading"></div>
@@ -98,8 +100,12 @@
                 <button class="btn btn-small" id="btnToggleMeaning">🔁 Hiện nghĩa</button>
                 <button class="btn btn-small" id="btnNextCard">▶</button>
                 <span id="fcProgress"></span>
+                <button class="btn btn-small" id="btnFocusMode">🧘 Focus</button>
             </div>
-            <p class="shortcut-hint">⌨️ ← → đổi thẻ, Space hiện/ẩn nghĩa (không nhảy chữ)</p>
+            <div id="exitFocusBtn" style="display:none; text-align:center; margin-top:10px;">
+                <button class="btn btn-small" id="btnExitFocus">✖ Thoát Focus</button>
+            </div>
+            <p class="shortcut-hint">⌨️ ← → đổi thẻ, Space hiện/ẩn nghĩa, Esc thoát Focus</p>
         </div>
         <div class="sub-panel" id="sub-quiz">
             <div id="quizArea" style="display:none;">
