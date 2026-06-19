@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Học tiếng Nhật qua AI - Focus & Ôn tập sao</title>
+    <title>Học tiếng Nhật qua AI - Focus & Ôn tập</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div class="container">
     <h1>📖 Học tiếng Nhật qua AI</h1>
-    <p class="subtitle">Tab ngang – Tự động lưu – Phím tắt – Lọc JLPT – ⭐ Ôn tập</p>
+    <p class="subtitle">Tab ngang – Tự động lưu – Phím tắt – Lọc JLPT – ⭐ Ôn tập – 🧩 Ghép nối</p>
 
     <div class="main-tabs">
         <button class="main-tab active" data-tab="prompt">1. Nhập liệu & Prompt</button>
@@ -18,7 +18,7 @@
         <button class="main-tab" data-tab="saved">4. Bài đã lưu</button>
     </div>
 
-    <!-- Tab 1: Nhập liệu & Prompt -->
+    <!-- Tab 1 -->
     <div class="main-panel active" id="panel-prompt">
         <div class="card-box">
             <h3>📋 Nhập nội dung</h3>
@@ -35,7 +35,7 @@
         </div>
     </div>
 
-    <!-- Tab 2: Dán JSON & Lưu -->
+    <!-- Tab 2 -->
     <div class="main-panel" id="panel-json">
         <div class="card-box">
             <h3>📥 Dán JSON từ AI (tự động lưu)</h3>
@@ -46,7 +46,7 @@
   "vocabulary": [
     {"word": "わたし", "reading": "watashi", "meaning": "tôi", "jlpt": "N5", "example": ""}
   ],
-  "grammar": []
+  "grammar": [...]
 }'></textarea>
             <button class="btn btn-primary" id="btnLoadJson">🚀 Xử lý & Học</button>
         </div>
@@ -73,6 +73,7 @@
             <button class="sub-tab" data-sub="grammar">📚 Ngữ pháp (<span id="grammarCount">0</span>)</button>
             <button class="sub-tab" data-sub="flashcard">🃏 Flashcard</button>
             <button class="sub-tab" data-sub="quiz">❓ Quiz</button>
+            <button class="sub-tab" data-sub="match">🧩 Ghép nối</button>
         </div>
 
         <div class="sub-panel active" id="sub-read"><div class="article-content" id="articleContent"></div></div>
@@ -126,9 +127,25 @@
             <div class="empty" id="quizEmpty">Cần ít nhất 4 từ vựng để làm quiz.</div>
             <p class="shortcut-hint">⌨️ 1-4 chọn đáp án, Space/→ sang câu tiếp</p>
         </div>
+
+        <!-- Panel Ghép nối (Match) -->
+        <div class="sub-panel" id="sub-match">
+            <div id="matchArea" style="display:none;">
+                <div style="text-align:center; margin-bottom:10px;">
+                    <button class="btn btn-primary" id="btnNewMatch">🔄 Làm mới</button>
+                    <span id="matchScore" style="margin-left:15px; font-weight:bold;">Đúng: 0 / 0</span>
+                </div>
+                <div id="matchContainer" style="display:flex; flex-wrap:wrap; gap:20px; justify-content:center; margin-top:10px;">
+                    <!-- Các cặp từ và nghĩa sẽ được render ở đây -->
+                </div>
+                <div id="matchResult" style="text-align:center; margin-top:15px; font-weight:bold; font-size:1.1rem;"></div>
+                <p class="shortcut-hint">💡 Click chọn một từ, sau đó click nghĩa tương ứng để ghép cặp.</p>
+            </div>
+            <div class="empty" id="matchEmpty">Chưa có từ vựng để ghép nối.</div>
+        </div>
     </div>
 
-    <!-- Tab 4: Bài đã lưu -->
+    <!-- Tab 4 -->
     <div class="main-panel" id="panel-saved">
         <h3>📚 Bài học đã lưu</h3>
         <div class="saved-list" id="savedList"></div>

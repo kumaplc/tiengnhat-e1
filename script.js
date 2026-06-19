@@ -8,7 +8,6 @@
     let savedArticles = JSON.parse(localStorage.getItem('jp_saved_articles') || '[]');
     let fcMeaningVisible = false;
     
-    // Starred map: lưu các từ cần ôn tập
     let starredMap = JSON.parse(localStorage.getItem('jp_starred_map') || '{}');
     function saveStarredMap() { localStorage.setItem('jp_starred_map', JSON.stringify(starredMap)); }
     function syncStarredToVocab() {
@@ -23,7 +22,6 @@
         saveStarredMap();
         const vocabItem = vocabList.find(v => v.word === word);
         if (vocabItem) vocabItem.starred = newState;
-        // Cập nhật UI nếu đang ở các panel liên quan
         const activeMain = document.querySelector('.main-panel.active');
         if (activeMain && activeMain.id === 'panel-learn') {
             const activeSub = document.querySelector('.sub-panel.active');
@@ -31,15 +29,22 @@
                 if (activeSub.id === 'sub-flashcard') updateFlashcardUI();
                 else if (activeSub.id === 'sub-vocab') renderVocabList();
                 else if (activeSub.id === 'sub-quiz') updateQuizUI();
+                else if (activeSub.id === 'sub-match') initMatchGame();
             }
         }
         showToast(newState ? '⭐ Đã thêm vào ôn tập' : '☆ Đã bỏ khỏi ôn tập');
     }
 
-    // Quiz variables
+    // Quiz
     let quizWords = [];
     let quizAnswers = [];
     let quizCurrentIndex = 0;
+
+    // Match
+    let matchPairs = [];
+    let matchSelected = null; // { type: 'word'|'meaning', index, text }
+    let matchCorrectCount = 0;
+    let matchTotal = 0;
 
     function showToast(msg) {
         const container = document.getElementById('toastContainer');
@@ -105,13 +110,12 @@
         document.querySelectorAll('.sub-panel').forEach(p => p.classList.remove('active'));
         const activeSubPanel = document.getElementById(`sub-${subName}`);
         if (activeSubPanel) activeSubPanel.classList.add('active');
-        // Cập nhật số lượng và render
-        applyJLPTFilter(); // cập nhật filteredCount
+        applyJLPTFilter();
         if (subName === 'flashcard') { fcIndex = 0; updateFlashcardUI(); }
         else if (subName === 'quiz') updateQuizUI();
         else if (subName === 'vocab') renderVocabList();
         else if (subName === 'grammar') renderGrammarList();
-        // sub-read không cần render gì thêm
+        else if (subName === 'match') initMatchGame();
     }
 
     document.querySelectorAll('.main-tab').forEach(tab => tab.addEventListener('click', () => switchMainTab(tab.dataset.tab)));
@@ -133,37 +137,125 @@
     if (filterSelect) {
         filterSelect.addEventListener('change', () => {
             if (document.getElementById('panel-learn')?.classList.contains('active')) {
-                // Cập nhật số lượng
-                const filtered = applyJLPTFilter();
+                applyJLPTFilter();
                 const activeSub = document.querySelector('.sub-panel.active');
                 if (activeSub) {
                     if (activeSub.id === 'sub-vocab') renderVocabList();
                     else if (activeSub.id === 'sub-flashcard') { fcIndex = 0; updateFlashcardUI(); }
                     else if (activeSub.id === 'sub-quiz') updateQuizUI();
-                    // sub-read và sub-grammar không bị ảnh hưởng bởi filter
+                    else if (activeSub.id === 'sub-match') initMatchGame();
                 }
             }
         });
     }
 
-    // PROMPT
+    // PROMPT (đã cập nhật theo yêu cầu)
     document.getElementById('btnGeneratePrompt')?.addEventListener('click', () => {
         const text = document.getElementById('inputText')?.value.trim();
         if (!text) { showToast('⚠️ Nhập nội dung bài đọc.'); return; }
-        const prompt = `Bạn là trợ lý dạy tiếng Nhật. Hãy phân tích đoạn văn sau và trả về **chính xác** một đối tượng JSON (không markdown, không văn bản thừa) theo cấu trúc:
+        const prompt = `Bạn là trợ lý dạy tiếng Nhật chuyên phân tích văn bản.
+
+Nhiệm vụ: Phân tích đoạn văn tiếng Nhật được cung cấp và trả về DUY NHẤT một đối tượng JSON hợp lệ theo chuẩn RFC8259.
+
+KHÔNG được:
+
+* Sử dụng Markdown.
+* Thêm giải thích.
+* Thêm ghi chú.
+* Thêm văn bản trước hoặc sau JSON.
+* Bọc JSON trong \`\`\`.
+
+Schema bắt buộc:
 
 {
-  "title": "Tiêu đề phù hợp (tiếng Việt)",
-  "fullText": "toàn bộ đoạn văn gốc (giữ nguyên)",
-  "vocabulary": [
-    { "word": "...", "reading": "...", "meaning": "...", "jlpt": "...", "example": "..." }
-  ],
-  "grammar": [
-    { "pattern": "...", "meaning": "...", "example": "...", "note": "..." }
-  ]
+"title": "Tiêu đề ngắn gọn bằng tiếng Việt",
+"fullText": "Nguyên văn đầu vào",
+"vocabulary": [
+{
+"word": "Từ gốc",
+"reading": "Cách đọc hiragana",
+"meaning": "Nghĩa tiếng Việt sát ngữ cảnh",
+"jlpt": "N5|N4|N3|N2|N1|Ngoài JLPT",
+"example": "Ví dụ ngắn bằng tiếng Nhật"
+}
+],
+"grammar": [
+{
+"pattern": "Mẫu ngữ pháp",
+"meaning": "Ý nghĩa tiếng Việt",
+"example": "Câu ví dụ",
+"note": "Ghi chú ngắn"
+}
+]
 }
 
-Yêu cầu: liệt kê tất cả từ vựng, nghĩa sát ngữ cảnh, chỉ trả về JSON thuần.
+Quy tắc phân tích từ vựng:
+
+1. Thực hiện phân tích hình thái (morphological analysis).
+
+2. Liệt kê MỌI từ nội dung xuất hiện trong văn bản:
+
+   * Danh từ (名詞)
+   * Động từ (動詞)
+   * Tính từ đuôi い (形容詞)
+   * Tính từ đuôi な (形容動詞)
+   * Phó từ (副詞)
+   * Liên từ (接続詞)
+
+3. KHÔNG liệt kê:
+
+   * Trợ từ (助詞)
+   * Trợ động từ (助動詞)
+   * Ký hiệu, dấu câu (記号)
+
+4. Mỗi từ chỉ xuất hiện MỘT lần.
+
+5. Động từ phải đưa về thể từ điển.
+   Ví dụ:
+
+   * 食べています → 食べる
+   * 行った → 行く
+
+6. Tính từ phải đưa về dạng gốc.
+   Ví dụ:
+
+   * 高かった → 高い
+
+7. Reading phải là hiragana.
+
+8. Nghĩa phải bám sát ngữ cảnh của đoạn văn, không dùng nghĩa quá chung chung.
+
+9. Sắp xếp vocabulary theo thứ tự xuất hiện đầu tiên trong văn bản.
+
+Quy tắc ngữ pháp:
+
+1. Liệt kê tất cả mẫu ngữ pháp JLPT đáng chú ý xuất hiện trong văn bản.
+
+2. Không tách các cấu trúc thông thường thành ngữ pháp nếu chúng không phải mẫu ngữ pháp thực sự.
+
+3. Sắp xếp theo thứ tự xuất hiện.
+
+4. Nếu không có mẫu ngữ pháp đáng chú ý:
+   "grammar": []
+
+Quy tắc tiêu đề:
+
+* Tạo tiêu đề ngắn gọn bằng tiếng Việt phản ánh nội dung chính của đoạn văn.
+* Không quá 15 từ.
+
+Quy tắc an toàn:
+
+* fullText phải giữ nguyên 100% nội dung đầu vào.
+* Không được làm mất ký tự nào.
+* Nếu đầu vào không chứa tiếng Nhật:
+  {
+  "title": "Không phải văn bản tiếng Nhật",
+  "fullText": "...",
+  "vocabulary": [],
+  "grammar": []
+  }
+
+Chỉ trả về JSON hợp lệ.
 
 Đoạn văn:
 """
@@ -305,7 +397,8 @@ ${text}
         updateCounts();
         updateFlashcardUI();
         updateQuizUI();
-        applyJLPTFilter(); // cập nhật số lượng
+        initMatchGame();
+        applyJLPTFilter();
     }
 
     function updateCounts() {
@@ -353,7 +446,7 @@ ${text}
     function renderVocabList() {
         const list = document.getElementById('vocabList'), empty = document.getElementById('vocabEmpty');
         if (!list || !empty) return;
-        const filtered = applyJLPTFilter(); // vừa lọc vừa cập nhật số lượng
+        const filtered = applyJLPTFilter();
         if(filtered.length===0){ list.innerHTML=''; empty.style.display='block'; return; }
         empty.style.display='none';
         list.innerHTML = filtered.map(v => {
@@ -369,13 +462,12 @@ ${text}
                 <div style="font-size:0.85rem; color:var(--sub); margin-top:6px;">📖 ${escapeHtml(getEasyExample(v, 'vocab'))}</div>
             </li>`;
         }).join('');
-        // Gắn sự kiện click cho từng sao
         document.querySelectorAll('.star-icon-list').forEach(el => {
             const word = el.dataset.word;
             el.addEventListener('click', (e) => {
                 e.stopPropagation();
                 toggleStar(word);
-                renderVocabList(); // refresh lại danh sách
+                renderVocabList();
             });
         });
     }
@@ -390,6 +482,7 @@ ${text}
             <div>${escapeHtml(g.meaning)}</div>
             ${g.example?`<div>📖 ${escapeHtml(g.example)}</div>`:`<div style="font-size:0.85rem; color:var(--sub);">📖 ${escapeHtml(getEasyExample(g, 'grammar'))}</div>`}
             ${g.note?`<div style="font-size:0.8rem;">💡 ${escapeHtml(g.note)}</div>`:''}
+            ${g.jlpt?`<span class="tag">${g.jlpt}</span>`:''}
         </li>`).join('');
     }
 
@@ -428,11 +521,9 @@ ${text}
         fcMeaning.textContent = v.meaning || '';
         fcProgress.textContent = `${fcIndex+1}/${filtered.length}`;
         
-        // Cập nhật ngôi sao
         if (starIcon) {
             starIcon.textContent = v.starred ? '★' : '☆';
             starIcon.classList.toggle('starred', v.starred);
-            // Xóa event cũ để tránh trùng, gán mới
             const newStar = starIcon.cloneNode(true);
             starIcon.parentNode.replaceChild(newStar, starIcon);
             const newStarIcon = document.getElementById('starIcon');
@@ -615,6 +706,169 @@ ${text}
 
     document.getElementById('btnNextQuiz')?.addEventListener('click', nextQuizQuestion);
 
+    // ============================
+    // MATCH GAME (Ghép nối)
+    // ============================
+    function initMatchGame() {
+        const filtered = getFilteredVocab();
+        const area = document.getElementById('matchArea');
+        const empty = document.getElementById('matchEmpty');
+        if (!area || !empty) return;
+        if (filtered.length < 2) {
+            area.style.display = 'none';
+            empty.style.display = 'block';
+            return;
+        }
+        area.style.display = 'block';
+        empty.style.display = 'none';
+
+        // Lấy tối đa 8 cặp để tránh rối
+        const maxPairs = Math.min(8, filtered.length);
+        const shuffled = [...filtered];
+        for (let i = shuffled.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
+        const selected = shuffled.slice(0, maxPairs);
+        matchPairs = selected.map((v, idx) => ({
+            id: idx,
+            word: v.word,
+            meaning: v.meaning || '(chưa có nghĩa)',
+            matched: false
+        }));
+        matchSelected = null;
+        matchCorrectCount = 0;
+        matchTotal = matchPairs.length;
+        document.getElementById('matchScore').textContent = `Đúng: 0 / ${matchTotal}`;
+        document.getElementById('matchResult').textContent = '';
+        renderMatchGame();
+    }
+
+    function renderMatchGame() {
+        const container = document.getElementById('matchContainer');
+        container.innerHTML = '';
+
+        // Tạo danh sách các item (từ và nghĩa) trộn lẫn
+        let items = [];
+        matchPairs.forEach(p => {
+            if (!p.matched) {
+                items.push({ type: 'word', pairId: p.id, text: p.word });
+                items.push({ type: 'meaning', pairId: p.id, text: p.meaning });
+            }
+        });
+        // Xáo trộn
+        for (let i = items.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [items[i], items[j]] = [items[j], items[i]];
+        }
+
+        // Render thành 2 hàng: từ và nghĩa riêng biệt để dễ nhìn
+        const wordItems = items.filter(it => it.type === 'word');
+        const meaningItems = items.filter(it => it.type === 'meaning');
+
+        const wordRow = document.createElement('div');
+        wordRow.className = 'match-pair';
+        wordRow.innerHTML = '<div class="match-pair-label">📝 Từ</div>';
+        wordItems.forEach(it => {
+            const el = document.createElement('span');
+            el.className = 'match-item';
+            el.dataset.type = it.type;
+            el.dataset.pairId = it.pairId;
+            el.textContent = it.text;
+            el.addEventListener('click', () => onMatchClick(el));
+            wordRow.appendChild(el);
+        });
+        container.appendChild(wordRow);
+
+        const meaningRow = document.createElement('div');
+        meaningRow.className = 'match-pair';
+        meaningRow.innerHTML = '<div class="match-pair-label">📖 Nghĩa</div>';
+        meaningItems.forEach(it => {
+            const el = document.createElement('span');
+            el.className = 'match-item';
+            el.dataset.type = it.type;
+            el.dataset.pairId = it.pairId;
+            el.textContent = it.text;
+            el.addEventListener('click', () => onMatchClick(el));
+            meaningRow.appendChild(el);
+        });
+        container.appendChild(meaningRow);
+
+        // Cập nhật score
+        document.getElementById('matchScore').textContent = `Đúng: ${matchCorrectCount} / ${matchTotal}`;
+        if (matchCorrectCount === matchTotal) {
+            document.getElementById('matchResult').textContent = '🎉 Chúc mừng! Bạn đã ghép đúng tất cả!';
+        }
+    }
+
+    function onMatchClick(el) {
+        if (el.classList.contains('matched')) return;
+        const type = el.dataset.type;
+        const pairId = parseInt(el.dataset.pairId);
+
+        // Nếu chưa có selection
+        if (matchSelected === null) {
+            // Chọn item này
+            el.classList.add('selected');
+            matchSelected = { element: el, type: type, pairId: pairId };
+            return;
+        }
+
+        // Nếu click chính nó -> bỏ chọn
+        if (matchSelected.element === el) {
+            el.classList.remove('selected');
+            matchSelected = null;
+            return;
+        }
+
+        // Đã có selection, kiểm tra ghép
+        const first = matchSelected;
+        const second = { element: el, type: type, pairId: pairId };
+
+        // Nếu cùng loại (từ-từ hoặc nghĩa-nghĩa) -> không ghép, chuyển selection
+        if (first.type === second.type) {
+            first.element.classList.remove('selected');
+            el.classList.add('selected');
+            matchSelected = { element: el, type: type, pairId: pairId };
+            return;
+        }
+
+        // Khác loại: kiểm tra ghép đúng
+        const isMatch = (first.pairId === second.pairId);
+
+        if (isMatch) {
+            // Đúng
+            first.element.classList.remove('selected');
+            first.element.classList.add('matched');
+            second.element.classList.add('matched');
+            matchCorrectCount++;
+            matchPairs.find(p => p.id === first.pairId).matched = true;
+            document.getElementById('matchResult').textContent = '✅ Đúng!';
+            document.getElementById('matchResult').style.color = '#27ae60';
+            matchSelected = null;
+
+            // Kiểm tra hoàn thành
+            if (matchCorrectCount === matchTotal) {
+                document.getElementById('matchResult').textContent = '🎉 Chúc mừng! Bạn đã ghép đúng tất cả!';
+            }
+            renderMatchGame(); // re-render để cập nhật
+        } else {
+            // Sai
+            first.element.classList.add('wrong');
+            second.element.classList.add('wrong');
+            document.getElementById('matchResult').textContent = '❌ Sai, thử lại!';
+            document.getElementById('matchResult').style.color = '#c0392b';
+            setTimeout(() => {
+                first.element.classList.remove('wrong', 'selected');
+                second.element.classList.remove('wrong');
+                matchSelected = null;
+                // Không re-render toàn bộ, chỉ xóa class
+            }, 500);
+        }
+    }
+
+    document.getElementById('btnNewMatch')?.addEventListener('click', initMatchGame);
+
     // PHÍM TẮT
     document.addEventListener('keydown', (e) => {
         const activeMain = document.querySelector('.main-panel.active');
@@ -639,7 +893,6 @@ ${text}
             }
         } else if (activeSub.id === 'sub-quiz') {
             const quizArea = document.getElementById('quizArea');
-            const quizSummary = document.getElementById('quizSummary');
             if (quizArea && quizArea.style.display === 'block') {
                 if (e.key === ' ' || e.key === 'Space' || e.key === 'ArrowRight') {
                     e.preventDefault();
@@ -670,7 +923,7 @@ Hãy bắt đầu bằng cách:
 - Học từ vựng và ngữ pháp
 - Ôn tập với Flashcard (phím ← → và Space)
 - Làm bài tập Quiz (phím 1-4 và Space/→)
-- Lọc theo cấp độ JLPT hoặc chỉ xem từ đã đánh dấu sao ⭐
+- Chơi ghép nối từ - nghĩa nhẹ nhàng
 
 Chúc bạn học tốt! 🎌`,
                 vocabulary: [],
